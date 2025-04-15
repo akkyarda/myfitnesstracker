@@ -1,0 +1,153 @@
+load("sensorlog_20250415_130752.mat");
+
+Xacc = Acceleration.X;
+Yacc = Acceleration.Y;
+Zacc = Acceleration.Z;
+accelDatetime=Acceleration.Timestamp;
+
+Xmag = MagneticField.X;
+Ymag = MagneticField.Y;
+Zmag = MagneticField.Z;
+magDatetime= MagneticField.Timestamp;
+
+Xorient = Orientation.X;
+Yorient = Orientation.Y;
+Zorient = Orientation.Z;
+orientDatetime= Orientation.Timestamp;
+
+lat = Position.latitude;
+lon = Position.longitude;
+positionDatetime = Position.Timestamp;
+spd = Position.speed;
+
+accelTime = timeElapsed(accelDatetime);
+magTime = timeElapsed(magDatetime);
+orientTime = timeElapsed(orientDatetime);
+positionTime = timeElapsed(positionDatetime);
+
+
+jumpedThreshold = 100;
+orient_x = Xorient - Xorient(1);
+orient_x_diff = orient_x(2:end) - orient_x(1:end-1); 
+orient_x_diff_clr = orient_x_diff;
+jump_points = find(abs(orient_x_diff) > jumpedThreshold);
+for i=1:length(jump_points)
+orient_x_diff_clr( jump_points(i) ) = (orient_x_diff_clr( jump_points(i) - 1 ));
++ ...
+orient_x_diff_clr(( jump_points(i) + 1 ))/2;
+end
+
+subplot(2,1,1);
+plot(orientTime(2:end), orient_x_diff);
+title("ORIENT X DIFF");
+
+subplot(2,1,2);
+plot(orientTime(2:end), orient_x_diff_clr);
+title("ORIENT X DIFF CLR");
+
+spinningAngleThreshold = mean( abs(orient_x_diff(jump_points))) -3; 
+angle_counter = 0;
+angle_counter_arr= 0;
+ccw_spin_flag(1:length(orient_x_diff_clr)) = 0;
+cw_spin_flag(1:length(orient_x_diff_clr)) = 0;
+for i=1:length(orient_x_diff_clr)
+angle_counter = angle_counter + orient_x_diff_clr(i);
+angle_counter_arr(i)= angle_counter;
+if(angle_counter > spinningAngleThreshold)
+angle_counter = 0;
+cw_spin_flag(i) = 1;
+end
+if(angle_counter < -1* spinningAngleThreshold)
+angle_counter = 0;
+ccw_spin_flag(i) = 1;
+end
+end
+
+disp("I turned " + num2str(sum(cw_spin_flag)) + " times clockwise and " ...
++ num2str(sum(ccw_spin_flag)) + " times counter clockwise." )
+
+earthCirc = 40175017;
+totaldis = 0;
+for i = 1: (length(lat)-1)
+lat1 = lat(i);
+lat2 = lat(i+1);
+lon1 = lon(i);
+lon2 = lon(i+1);
+diff_ = distance(lat1,lon1,lat2,lon2);
+dis = (diff_/360)*earthCirc;
+totaldis = totaldis + dis;
+end
+disp(['The total distance traveled is: ', num2str(totaldis),' meters']);
+
+avg_step_len= 0.65;
+step_number= totaldis/avg_step_len;
+step_number= round(step_number);
+disp(['You took ', num2str(step_number) ' steps. (based on position data)']);
+
+figure('units','normalized','outerposition',[0 0 1 1]);
+plot(accelTime,Xacc);
+hold on;
+plot(accelTime,Yacc);
+plot(accelTime,Zacc);
+xlim([0 50])
+legend('X Acceleration','Y Acceleration','Z Acceleration');
+xlabel('Time (s)')
+ylabel('Acceleration (m/s^2)');
+title('Acceleration Data Vs. Time');
+grid;
+hold off
+
+acc_mag = sqrt(sum(Xacc.^2 + Yacc.^2 + Zacc.^2, 2));
+figure('units','normalized','outerposition',[0 0 1 1]);
+plot(accelTime, acc_mag);
+xlabel('Time (s)');
+ylabel('Acceleration (m/s^2)');
+title('Magnitude of Acceleration Vs. Time');
+grid;
+
+%%%%%Can you observe a constant bias on the accelerometer data even while you are
+%standing still? Estimate its value and comment on the reason behind it
+
+constant_effect = mean(acc_mag);
+mag_0 = acc_mag- constant_effect;
+minPeakHeight = std(mag_0);
+[pks,locs] = findpeaks(mag_0,'MINPEAKHEIGHT',minPeakHeight);
+figure('units','normalized','outerposition',[0 0 1 1]);
+plot(accelTime,mag_0);
+hold on;
+plot(accelTime(locs), pks, 'r', 'Marker', 'v', 'LineStyle', 'none');
+xlabel('Time (s)');
+title('Magnitude of Acceleration Vs. Time, Constant Effects are Excluded');
+grid;
+hold off;
+numSteps = numel(pks);
+disp(['You took ', num2str(numSteps) ' steps. (based on acceleration data)']);
+
+ma5 = movmean(mag_0, 5);
+peaks_ma5 = findpeaks(ma5, 'MinPeakHeight', std(ma5));
+ma11 = movmean(mag_0, 11);
+peaks_ma11 = findpeaks(ma11, 'MinPeakHeight', std(ma11));
+disp(['You took ', num2str(numel(peaks_ma5)) ' steps. (based on 5-point moving average filters)']);
+disp(['You took ', num2str(numel(peaks_ma11)) ' steps. (based on 11-point moving average filters)']);
+
+mag_0 = movmean(mag_0,11);
+alpha = 0.5;
+filteredData = zeros(size(mag_0));
+filteredData(1) = mag_0(1); 
+for i = 2:length(mag_0)
+ filteredData(i) = alpha * mag_0(i) + (1 - alpha) * filteredData(i-1);
+end
+
+figure('units','normalized','outerposition',[0 0 1 1]);
+plot(positionTime(spd<=0.3), spd(spd<=0.3), "*");
+hold on;
+plot(positionTime(0.3<spd&spd<=1.5), spd(0.3<spd&spd<=1.5), "*");
+hold on;
+plot(positionTime(1.5<spd), spd(1.5<spd), "*");
+xlabel('Time (s)');
+ylabel('Speed (m/s)');
+title("Speed vs Time");
+grid;
+hold off;
+
+mapping(Position); 
