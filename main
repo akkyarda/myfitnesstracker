@@ -1,4 +1,4 @@
-load("sensorlog_20250415_130752.mat");
+load('sensorlog_20250416_222622.mat');
 
 Xacc = Acceleration.X;
 Yacc = Acceleration.Y;
@@ -45,7 +45,7 @@ subplot(2,1,2);
 plot(orientTime(2:end), orient_x_diff_clr);
 title("ORIENT X DIFF CLR");
 
-spinningAngleThreshold = mean( abs(orient_x_diff(jump_points))) -3; 
+spinningAngleThreshold = mean( abs(orient_x_diff(jump_points))) -10;%We can change our threshold value which is originally 3.
 angle_counter = 0;
 angle_counter_arr= 0;
 ccw_spin_flag(1:length(orient_x_diff_clr)) = 0;
@@ -79,7 +79,7 @@ totaldis = totaldis + dis;
 end
 disp(['The total distance traveled is: ', num2str(totaldis),' meters']);
 
-avg_step_len= 0.65;
+avg_step_len= 0.75;
 step_number= totaldis/avg_step_len;
 step_number= round(step_number);
 disp(['You took ', num2str(step_number) ' steps. (based on position data)']);
@@ -131,11 +131,11 @@ disp(['You took ', num2str(numel(peaks_ma5)) ' steps. (based on 5-point moving a
 disp(['You took ', num2str(numel(peaks_ma11)) ' steps. (based on 11-point moving average filters)']);
 
 mag_0 = movmean(mag_0,11);
-alpha = 0.5;
-filteredData = zeros(size(mag_0));
-filteredData(1) = mag_0(1); 
+alpha =0.9;% I changed alpha 
+EMAfilteredData = zeros(size(mag_0));
+EMAfilteredData(1) = mag_0(1); 
 for i = 2:length(mag_0)
- filteredData(i) = alpha * mag_0(i) + (1 - alpha) * filteredData(i-1);
+ EMAfilteredData(i) = alpha * mag_0(i) + (1 - alpha) * EMAfilteredData(i-1);
 end
 
 figure('units','normalized','outerposition',[0 0 1 1]);
@@ -150,4 +150,45 @@ title("Speed vs Time");
 grid;
 hold off;
 
+%%%Comment on speed plot and accuracy of physical activity classification based on
+%speed. How can the classification labels be extended, and what are the
+%alternative classification methods?
+
 mapping(Position); 
+
+%%%What is the meaning of different colors on the route?
+%What are the possible applications of this project work in the real world? What are
+%the possible extensions/developments on the project as the next step? (Answer
+%these questions in the conclusion part of the report.).
+
+% Example 3D trajectories
+X = cumsum(randn(3, 20), 2);  % Random walk (source trajectory)
+R_true = axang2rotm([0, 0, 1, pi/4]);  % Rotation around z-axis
+t_true = [5; -3; 2];                   % Translation
+s_true = 1.5;                          % Scaling
+
+Y = s_true * R_true * X + t_true;     % Apply transformation
+
+% Apply Umeyama alignment
+[R_est, t_est, s_est] = umeyama_alignment(X, Y, true);
+X_aligned = s_est * R_est * X + t_est;
+
+% Plotting
+figure;
+tiledlayout(1,2, 'Padding','compact');
+
+% Left subplot: original
+nexttile;
+plot3(X(1,:), X(2,:), X(3,:), 'bo-', 'DisplayName', 'Original X'); hold on;
+plot3(Y(1,:), Y(2,:), Y(3,:), 'rx-', 'DisplayName', 'Target Y');
+legend; grid on; axis equal;
+title('Before Alignment');
+xlabel('X'); ylabel('Y'); zlabel('Z');
+
+% Right subplot: after alignment
+nexttile;
+plot3(X_aligned(1,:), X_aligned(2,:), X_aligned(3,:), 'go-', 'DisplayName', 'Aligned X'); hold on;
+plot3(Y(1,:), Y(2,:), Y(3,:), 'r--', 'DisplayName', 'Target Y');
+legend; grid on; axis equal;
+title('After Umeyama Alignment');
+xlabel('X'); ylabel('Y'); zlabel('Z');
