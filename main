@@ -39,11 +39,15 @@ end
 
 subplot(2,1,1);
 plot(orientTime(2:end), orient_x_diff);
-title("ORIENT X DIFF");
+title("ORIENT X DIFF VS TIME");
+xlabel("Time (s)");
+ylabel("Orientation X Difference (degrees)");
 
 subplot(2,1,2);
 plot(orientTime(2:end), orient_x_diff_clr);
-title("ORIENT X DIFF CLR");
+title("ORIENT X DIFF CLR VS TIME");
+xlabel("Time (s)");
+ylabel("Corrected Orientation X Difference (degrees)");
 
 spinningAngleThreshold = mean( abs(orient_x_diff(jump_points))) -10;%We can change our threshold value which is originally 3.
 angle_counter = 0;
@@ -105,9 +109,6 @@ ylabel('Acceleration (m/s^2)');
 title('Magnitude of Acceleration Vs. Time');
 grid;
 
-%%%%%Can you observe a constant bias on the accelerometer data even while you are
-%standing still? Estimate its value and comment on the reason behind it
-
 constant_effect = mean(acc_mag);
 mag_0 = acc_mag- constant_effect;
 minPeakHeight = std(mag_0);
@@ -150,16 +151,7 @@ title("Speed vs Time");
 grid;
 hold off;
 
-%%%Comment on speed plot and accuracy of physical activity classification based on
-%speed. How can the classification labels be extended, and what are the
-%alternative classification methods?
-
 mapping(Position); 
-
-%%%What is the meaning of different colors on the route?
-%What are the possible applications of this project work in the real world? What are
-%the possible extensions/developments on the project as the next step? (Answer
-%these questions in the conclusion part of the report.).
 
 alt= Position.altitude;
 
@@ -168,3 +160,66 @@ plot3(lat,lon,alt);
 xlabel("x meter");
 ylabel("y meter");
 zlabel("z meter");
+
+%%%DEEPSEEK
+
+ground_truth = struct();
+ground_truth.time = [0; 60; 120; 230]; % Timestamps in seconds
+ground_truth.activity = {'standing'; 'slow_walking'; 'fast_walking'; 'standing'};
+ground_truth.distance = [0; 30; 90; 90]; % Cumulative distance in meters
+ground_truth.position = [0 0; 10 0; 10 20; 10 20]; % [x,y] coordinates in meters
+
+% Using position sensor speed data
+speed = Position.speed;
+dt = diff(positionTime);
+estimated_pos_vel = zeros(length(speed), 2);
+estimated_pos_vel(1,:) = [0 0]; 
+for i = 2:length(speed)
+    estimated_pos_vel(i,:) = estimated_pos_vel(i-1,:) + ...
+        [speed(i)*cosd(Orientation.X(i)), speed(i)*sind(Orientation.X(i))] * dt(i-1);
+end
+
+accel_mag = sqrt(Acceleration.X.^2 + Acceleration.Y.^2 + Acceleration.Z.^2) - 9.81;
+
+velocity = cumtrapz(accelTime, accel_mag);
+estimated_pos_acc = cumtrapz(accelTime, velocity);
+estimated_pos_acc = [estimated_pos_acc, zeros(size(estimated_pos_acc))];
+
+gt_pos_interp = interp1(ground_truth.time, ground_truth.position, positionTime);
+
+ATE_vel = zeros(length(positionTime), 1);
+for i = 1:length(positionTime)
+    ATE_vel(i) = norm(gt_pos_interp(i,:) - estimated_pos_vel(i,:));
+end
+
+gt_pos_interp_acc = interp1(ground_truth.time, ground_truth.position, accelTime);
+ATE_acc = zeros(length(accelTime), 1);
+for i = 1:length(accelTime)
+    ATE_acc(i) = norm(gt_pos_interp_acc(i,:) - [estimated_pos_acc(i,1), 0]);
+end
+
+mean_ATE_vel = mean(ATE_vel);
+mean_ATE_acc = mean(ATE_acc);
+
+figure;
+plot(ground_truth.position(:,1), ground_truth.position(:,2), 'k-', 'LineWidth', 2); 
+hold on;
+plot(estimated_pos_vel(:,1), estimated_pos_vel(:,2), 'b--');
+plot(estimated_pos_acc(:,1), zeros(size(estimated_pos_acc(:,1))), 'r:');
+legend('Ground Truth', 'Velocity Integration', 'Acceleration Integration');
+title('Trajectory Comparison');
+
+figure;
+subplot(2,1,1);
+plot(positionTime, ATE_vel);
+title('ATE for Velocity Integration');
+ylabel('Error (m)');
+
+subplot(2,1,2);
+plot(accelTime, ATE_acc);
+title('ATE for Acceleration Integration');
+ylabel('Error (m)');
+xlabel('Time (s)');
+
+fprintf('Velocity Integration - Mean ATE: %.2f m\n', mean_ATE_vel);
+fprintf('Acceleration Integration - Mean ATE: %.2f m\n', mean_ATE_acc);
