@@ -161,34 +161,10 @@ mapping(Position);
 %the possible extensions/developments on the project as the next step? (Answer
 %these questions in the conclusion part of the report.).
 
-% Example 3D trajectories
-X = cumsum(randn(3, 20), 2);  % Random walk (source trajectory)
-R_true = axang2rotm([0, 0, 1, pi/4]);  % Rotation around z-axis
-t_true = [5; -3; 2];                   % Translation
-s_true = 1.5;                          % Scaling
+alt= Position.altitude;
 
-Y = s_true * R_true * X + t_true;     % Apply transformation
-
-% Apply Umeyama alignment
-[R_est, t_est, s_est] = umeyama_alignment(X, Y, true);
-X_aligned = s_est * R_est * X + t_est;
-
-% Plotting
 figure;
-tiledlayout(1,2, 'Padding','compact');
-
-% Left subplot: original
-nexttile;
-plot3(X(1,:), X(2,:), X(3,:), 'bo-', 'DisplayName', 'Original X'); hold on;
-plot3(Y(1,:), Y(2,:), Y(3,:), 'rx-', 'DisplayName', 'Target Y');
-legend; grid on; axis equal;
-title('Before Alignment');
-xlabel('X'); ylabel('Y'); zlabel('Z');
-
-% Right subplot: after alignment
-nexttile;
-plot3(X_aligned(1,:), X_aligned(2,:), X_aligned(3,:), 'go-', 'DisplayName', 'Aligned X'); hold on;
-plot3(Y(1,:), Y(2,:), Y(3,:), 'r--', 'DisplayName', 'Target Y');
-legend; grid on; axis equal;
-title('After Umeyama Alignment');
-xlabel('X'); ylabel('Y'); zlabel('Z');
+plot3(lat,lon,alt);
+xlabel("x meter");
+ylabel("y meter");
+zlabel("z meter");
